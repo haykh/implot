@@ -2178,7 +2178,7 @@ struct ArcRenderer {
     const TGetter& Getter;
     const TTransformer& Transformer;
     const int Prims;
-    static const int ntheta {3};
+    static const int ntheta {5};
     static const int IdxConsumed = 6 * ntheta;
     static const int VtxConsumed = 2 * (ntheta + 1);
 };
@@ -2195,9 +2195,7 @@ struct GetterPolarHeatmap {
         ScaleMax(scale_max),
         r_array(r_array),
         theta_array(theta_array)
-    {
-      // accept nodes?
-    }
+    {}
 
     template <typename I> IMPLOT_INLINE ArcInfo operator()(I idx) const {
         double val = (double)Values[idx];
@@ -2218,7 +2216,7 @@ struct GetterPolarHeatmap {
         return arc;
     }
     const T* const Values;
-    const int Count, Rows, Cols;
+    const int Rows, Cols, Count;
     const double ScaleMin, ScaleMax;
     const double *r_array, *theta_array;
 };
@@ -2288,32 +2286,10 @@ void PlotPolarHeatmap(const char* label_id, const T* values,
       FitPoint(bounds_max);
     }
     ImDrawList& DrawList = *GetPlotDrawList();
-    switch (GetCurrentScale()) {
-      case ImPlotScale_LinLin:
-        RenderPolarHeatmap(TransformerLinLin(), DrawList, values,
-          rows, cols, scale_min, scale_max,
-          r_array, theta_array,
-          fmt, bounds_min, bounds_max, true);
-        break;
-      case ImPlotScale_LogLin:
-        RenderPolarHeatmap(TransformerLogLin(), DrawList, values,
-          rows, cols, scale_min, scale_max,
-          r_array, theta_array,
-          fmt, bounds_min, bounds_max, true);
-        break;
-      case ImPlotScale_LinLog:
-        RenderPolarHeatmap(TransformerLinLog(), DrawList, values,
-          rows, cols, scale_min, scale_max,
-          r_array, theta_array,
-          fmt, bounds_min, bounds_max, true);
-        break;
-      case ImPlotScale_LogLog:
-        RenderPolarHeatmap(TransformerLogLog(), DrawList, values,
-          rows, cols, scale_min, scale_max,
-          r_array, theta_array,
-          fmt, bounds_min, bounds_max, true);
-        break;
-    }
+    RenderPolarHeatmap(TransformerLinLin(), DrawList, values,
+      rows, cols, scale_min, scale_max,
+      r_array, theta_array,
+      fmt, bounds_min, bounds_max, true);
     EndItem();
   }
 }
