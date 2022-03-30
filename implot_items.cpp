@@ -26,6 +26,11 @@
 #include "implot_internal.h"
 #include <iostream>
 
+#include <math.h>
+#define SIGN(x)      (((x) < 0.0) ? -1.0 : 1.0)
+#define ABS(x)       (((x) < 0.0) ? -(x) : (x))
+#define QLOGSCALE(x) ((SIGN(x) * powf(ABS(x), 0.25f)))
+
 #ifdef _MSC_VER
 #define sprintf sprintf_s
 #endif
@@ -2185,47 +2190,62 @@ struct ArcRenderer {
 
 template <typename T>
 struct GetterPolarHeatmap {
-    GetterPolarHeatmap(const T* values, int rows, int cols, double scale_min, double scale_max,
-                       double* r_array, double* theta_array) :
-        Values(values),
+  GetterPolarHeatmap(const T* values,
+                     int rows,
+                     int cols,
+                     double scale_min,
+                     double scale_max,
+                     const double* r_array,
+                     const double* theta_array,
+                     const bool use_log_scale)
+      : Values(values),
         Rows(rows),
         Cols(cols),
-        Count(rows*cols),
+        Count(rows * cols),
         ScaleMin(scale_min),
         ScaleMax(scale_max),
-        r_array(r_array),
-        theta_array(theta_array)
-    {}
+        RArray(r_array),
+        ThetaArray(theta_array),
+        UseLogScale(use_log_scale) {}
 
-    template <typename I> IMPLOT_INLINE ArcInfo operator()(I idx) const {
-        double val = (double)Values[idx];
-        const int r = idx / Cols;
-        const int c = idx % Cols;
+  template <typename I>
+  IMPLOT_INLINE ArcInfo operator()(I idx) const {
+    double val;
+    if (UseLogScale) {
+      val = (double)(QLOGSCALE(Values[idx]));
+    } else {
+      val = (double)Values[idx];
+    }
+    const int r = idx / Cols;
+    const int c = idx % Cols;
 
-        double rlow {r_array[c]}, rhigh {r_array[c + 1]};
-        double th1 {theta_array[r]}, th2 {theta_array[r + 1]};
+    double rlow{RArray[c]}, rhigh{RArray[c + 1]};
+    double th1{ThetaArray[r]}, th2{ThetaArray[r + 1]};
 
-        ArcInfo arc;
-        arc.Min.x = rlow;
-        arc.Min.y = th1;
-        arc.Max.x = rhigh;
-        arc.Max.y = th2;
-        const float t = ImClamp((float)ImRemap01(val, ScaleMin, ScaleMax),0.0f,1.0f);
-        arc.Color = GImPlot->ColormapData.LerpTable(GImPlot->Style.Colormap, t);
+    ArcInfo arc;
+    arc.Min.x = rlow;
+    arc.Min.y = th1;
+    arc.Max.x = rhigh;
+    arc.Max.y = th2;
+    const float t = ImClamp((float)ImRemap01(val, ScaleMin, ScaleMax), 0.0f, 1.0f);
+    arc.Color = GImPlot->ColormapData.LerpTable(GImPlot->Style.Colormap, t);
 
-        return arc;
+    return arc;
     }
     const T* const Values;
     const int Rows, Cols, Count;
     const double ScaleMin, ScaleMax;
-    const double *r_array, *theta_array;
+    const double *RArray, *ThetaArray;
+    const bool UseLogScale;
 };
 
 template <typename T, typename Transformer>
 void RenderPolarHeatmap(Transformer transformer, ImDrawList& DrawList, const T* values,
                         int rows, int cols, double scale_min, double scale_max,
-                        double* r_array, double* theta_array,
-                        const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max, bool reverse_y) {
+                        double* r_array, double* theta_array, bool use_log_scale,
+                        const char* fmt, 
+                        const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max, 
+                        bool reverse_y) {
     ImPlotContext& gp = *GImPlot;
     if (scale_min == 0 && scale_max == 0) {
         T temp_min, temp_max;
@@ -2243,8 +2263,8 @@ void RenderPolarHeatmap(Transformer transformer, ImDrawList& DrawList, const T* 
     const double yref = reverse_y ? bounds_max.y : bounds_min.y;
     const double ydir = reverse_y ? -1 : 1;
     // @TODO: maybe pass an array of r_i and theta_i?
-    GetterPolarHeatmap<T> getter(values, rows, cols, scale_min, scale_max,
-                                 r_array, theta_array);
+    GetterPolarHeatmap<T> getter(
+        values, rows, cols, scale_min, scale_max, r_array, theta_array, use_log_scale);
     switch (GetCurrentScale()) {
         case ImPlotScale_LinLin: RenderPrimitives(ArcRenderer<GetterPolarHeatmap<T>, TransformerLinLin>(getter, TransformerLinLin()), DrawList, gp.CurrentPlot->PlotRect); break;
         case ImPlotScale_LogLin: RenderPrimitives(ArcRenderer<GetterPolarHeatmap<T>, TransformerLogLin>(getter, TransformerLogLin()), DrawList, gp.CurrentPlot->PlotRect); break;;
@@ -2278,7 +2298,7 @@ void RenderPolarHeatmap(Transformer transformer, ImDrawList& DrawList, const T* 
 template <typename T>
 void PlotPolarHeatmap(const char* label_id, const T* values,
                       int rows, int cols, double scale_min, double scale_max,
-                      double *r_array, double *theta_array,
+                      double *r_array, double *theta_array, bool use_log_scale,
                       const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
   if (BeginItem(label_id)) {
     if (FitThisFrame()) {
@@ -2288,21 +2308,21 @@ void PlotPolarHeatmap(const char* label_id, const T* values,
     ImDrawList& DrawList = *GetPlotDrawList();
     RenderPolarHeatmap(TransformerLinLin(), DrawList, values,
       rows, cols, scale_min, scale_max,
-      r_array, theta_array,
+      r_array, theta_array, use_log_scale,
       fmt, bounds_min, bounds_max, true);
     EndItem();
   }
 }
 
-template IMPLOT_API void PlotPolarHeatmap<ImS8>(const char*, const ImS8*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<ImS16>(const char*, const ImS16*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<ImU16>(const char*, const ImU16*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<ImS32>(const char*, const ImS32*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<ImU32>(const char*, const ImU32*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<ImS64>(const char*, const ImS64*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<ImU64>(const char*, const ImU64*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<float>(const char*, const float*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
-template IMPLOT_API void PlotPolarHeatmap<double>(const char*, const double*, int, int, double, double, double*, double*, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<ImS8>(const char*, const ImS8*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<ImS16>(const char*, const ImS16*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<ImU16>(const char*, const ImU16*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<ImS32>(const char*, const ImS32*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<ImU32>(const char*, const ImU32*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<ImS64>(const char*, const ImS64*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<ImU64>(const char*, const ImU64*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<float>(const char*, const float*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
+template IMPLOT_API void PlotPolarHeatmap<double>(const char*, const double*, int, int, double, double, double*, double*, bool, const char*, const ImPlotPoint&, const ImPlotPoint&);
 
 //-----------------------------------------------------------------------------
 // PLOT HISTOGRAM
