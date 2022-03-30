@@ -2242,7 +2242,7 @@ void RenderPolarHeatmap(Transformer transformer, ImDrawList& DrawList, const T* 
     }
     const double yref = reverse_y ? bounds_max.y : bounds_min.y;
     const double ydir = reverse_y ? -1 : 1;
-    // maybe pass an array of r_i and theta_i?
+    // @TODO: maybe pass an array of r_i and theta_i?
     GetterPolarHeatmap<T> getter(values, rows, cols, scale_min, scale_max,
                                  r_array, theta_array);
     switch (GetCurrentScale()) {
