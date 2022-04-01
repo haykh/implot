@@ -27,9 +27,6 @@
 #include <iostream>
 
 #include <math.h>
-#define SIGN(x)      (((x) < 0.0) ? -1.0 : 1.0)
-#define ABS(x)       (((x) < 0.0) ? -(x) : (x))
-#define QLOGSCALE(x) ((SIGN(x) * powf(ABS(x), 0.25f)))
 
 #ifdef _MSC_VER
 #define sprintf sprintf_s
@@ -2188,6 +2185,18 @@ struct ArcRenderer {
     static const int VtxConsumed = 2 * (ntheta + 1);
 };
 
+#ifndef SIGN
+#  define SIGN(x) (((x) < 0.0) ? -1.0 : 1.0)
+#endif
+
+#ifndef ABS
+#  define ABS(x) (((x) < 0.0) ? -(x) : (x))
+#endif
+
+#ifndef QLOGSCALE
+#  define QLOGSCALE(x) ((SIGN(x) * powf(ABS(x), 0.25f)))
+#endif
+
 template <typename T>
 struct GetterPolarHeatmap {
   GetterPolarHeatmap(const T* values,
@@ -2238,6 +2247,10 @@ struct GetterPolarHeatmap {
     const double *RArray, *ThetaArray;
     const bool UseLogScale;
 };
+
+#undef SIGN
+#undef ABS
+#undef QLOGSCALE
 
 template <typename T, typename Transformer>
 void RenderPolarHeatmap(Transformer transformer, ImDrawList& DrawList, const T* values,
